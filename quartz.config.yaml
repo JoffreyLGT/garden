@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json
 configuration:
   pageTitle: Joff's notes
-  pageTitleSuffix: " — Notes on dev, gaming and life"
+  pageTitleSuffix: " — Notes on programming, gaming and life"
   enableSPA: true
   enablePopovers: true
   analytics: null
@@ -224,7 +224,7 @@ plugins:
     enabled: true
     options:
       links:
-        GitHub: https://github.com/JoffreyLGT
+        My GitHub: https://github.com/JoffreyLGT
   - source: github:quartz-community/recent-notes
     enabled: false
   - source: github:quartz-community/spacer

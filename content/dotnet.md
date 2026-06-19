@@ -3,10 +3,8 @@ created: 2026-05-04
 tags:
   - 0🌲
   - tech
-public: "true"
+public: true
 ---
-Hello there
-
 ## Snippets
 ### Read a section from `appsettings.json`
 ```C#

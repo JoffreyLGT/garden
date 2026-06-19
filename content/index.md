@@ -1,5 +1,5 @@
 ---
-home: "true"
-public: "true"
+title: Garden
 ---
-Test hello world
+
+Welcome to my digital garden.
