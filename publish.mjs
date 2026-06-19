@@ -72,11 +72,14 @@ function frontmatter(text) {
   return data;
 }
 
-function isPublic(fm) {
-  if (fm.public === undefined) return false;
-  const v = String(fm.public).trim().replace(/^["']|["']$/g, "").toLowerCase();
+function truthy(val) {
+  if (val === undefined) return false;
+  const v = String(val).trim().replace(/^["']|["']$/g, "").toLowerCase();
   return v === "true" || v === "yes" || v === "1";
 }
+const isPublic = (fm) => truthy(fm.public);
+// A note flagged `home: true` becomes the site homepage (emitted as content/index.md).
+const isHome = (fm) => truthy(fm.home);
 
 // Collect attachment references (Obsidian embeds + markdown images) from a note body.
 function refsFromBody(text) {
@@ -154,16 +157,24 @@ function main() {
   const mdFiles = allFiles.filter((f) => f.toLowerCase().endsWith(".md"));
   const index = buildAttachmentIndex(allFiles);
 
+  // Parse every note once; the first note flagged `home: true` is the homepage.
+  const parsed = mdFiles.map((abs) => {
+    const text = fs.readFileSync(abs, "utf8");
+    return { abs, text, fm: frontmatter(text) };
+  });
+  const homeAbs = parsed.find((p) => isHome(p.fm))?.abs ?? null;
+
   const emit = new Map(); // contentRelPath -> absolute source path
   let publicCount = 0;
 
-  for (const noteAbs of mdFiles) {
-    const text = fs.readFileSync(noteAbs, "utf8");
-    if (!isPublic(frontmatter(text))) continue;
+  for (const p of parsed) {
+    const isHomeNote = p.abs === homeAbs;
+    if (!isPublic(p.fm) && !isHomeNote) continue; // home note is published implicitly
     publicCount++;
-    emit.set(toPosix(path.relative(VAULT, noteAbs)), noteAbs);
-    for (const ref of refsFromBody(text)) {
-      const att = resolveAttachment(ref, noteAbs, index);
+    const rel = isHomeNote ? "index.md" : toPosix(path.relative(VAULT, p.abs));
+    emit.set(rel, p.abs);
+    for (const ref of refsFromBody(p.text)) {
+      const att = resolveAttachment(ref, p.abs, index);
       if (!att) continue;
       const arel = toPosix(path.relative(VAULT, att));
       if (!arel.startsWith("..")) emit.set(arel, att);
@@ -176,12 +187,17 @@ function main() {
   const toDelete = prev.filter((p) => !next.has(p));
 
   console.log(`Vault:        ${VAULT}`);
-  console.log(`Public notes: ${publicCount}`);
+  console.log(`Published:    ${publicCount} note(s)${homeAbs ? "  (homepage: " + toPosix(path.relative(VAULT, homeAbs)) + ")" : ""}`);
   console.log(`Emitting:     ${next.size} files (notes + referenced attachments)`);
   console.log(`Deleting:     ${toDelete.length} unpublished file(s)`);
   toDelete.forEach((p) => console.log(`  - ${p}`));
 
-  if (DRY) { console.log("\n--dry-run: nothing written."); return; }
+  if (DRY) {
+    console.log("Would emit:");
+    [...next].sort().forEach((p) => console.log(`  + ${p}`));
+    console.log("\n--dry-run: nothing written.");
+    return;
+  }
 
   for (const rel of toDelete) {
     const abs = path.join(CONTENT, rel);
@@ -194,6 +210,14 @@ function main() {
     fs.copyFileSync(src, dest);
   }
   fs.writeFileSync(MANIFEST, JSON.stringify([...next].sort(), null, 2) + "\n");
+
+  // Safety net: the site must always have a homepage.
+  const indexAbs = path.join(CONTENT, "index.md");
+  if (!fs.existsSync(indexAbs)) {
+    fs.writeFileSync(indexAbs, "---\ntitle: Garden\n---\n\nWelcome to my digital garden.\n");
+    console.log("No `home: true` note found — wrote a default content/index.md.");
+  }
+
   console.log("\nContent folder synced.");
 
   if (NO_GIT) { console.log("--no-git: skipped commit/push."); return; }

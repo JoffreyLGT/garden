@@ -17,6 +17,12 @@ here and built into the public site.
 - A push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml),
   which builds Quartz and deploys to GitHub Pages.
 
+## Homepage
+
+To control the landing page from Obsidian, add `home: true` to the frontmatter of
+any vault note — it gets published as `content/index.md` (the site root). The first
+note with `home: true` wins; if none exists, a default homepage is generated.
+
 ## Publishing (day to day)
 
 From this folder:
