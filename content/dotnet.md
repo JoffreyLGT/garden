@@ -5,6 +5,8 @@ tags:
   - tech
 public: "true"
 ---
+Hello there
+
 ## Snippets
 ### Read a section from `appsettings.json`
 ```C#
