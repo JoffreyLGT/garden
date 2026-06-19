@@ -158,6 +158,14 @@ function parseFooterLinks(val) {
   return out;
 }
 
+// Set a nested option on the plugin whose `source` matches, in the YAML Document.
+function setPluginOption(doc, source, keyPath, value) {
+  const plugins = doc.get("plugins", true);
+  for (const item of plugins?.items ?? []) {
+    if (item.get && item.get("source") === source) item.setIn(keyPath, doc.createNode(value));
+  }
+}
+
 // Apply the control-panel note's properties to quartz.config.yaml (preserving the
 // file's comments/structure). Returns the human-readable changes; only writes when
 // `write` is true and something actually changed.
@@ -178,13 +186,18 @@ function applySiteConfig(cfgFm, write) {
   }
   if ("footer_links" in cfgFm) {
     const links = parseFooterLinks(cfgFm.footer_links);
-    const plugins = doc.get("plugins", true);
-    for (const item of plugins?.items ?? []) {
-      if (item.get && item.get("source") === "github:quartz-community/footer") {
-        item.setIn(["options", "links"], doc.createNode(links));
-        changes.push(`footer links -> ${JSON.stringify(links)}`);
-      }
-    }
+    setPluginOption(doc, "github:quartz-community/footer", ["options", "links"], links);
+    changes.push(`footer links -> ${JSON.stringify(links)}`);
+  }
+  if ("display_properties" in cfgFm) {
+    const props = (Array.isArray(cfgFm.display_properties)
+      ? cfgFm.display_properties
+      : [cfgFm.display_properties]
+    ).map(String).filter(Boolean);
+    // Force allowlist mode so private flags (public/home/garden_config/…) never leak.
+    setPluginOption(doc, "github:quartz-community/note-properties", ["options", "includeAll"], false);
+    setPluginOption(doc, "github:quartz-community/note-properties", ["options", "includedProperties"], props);
+    changes.push(`displayed properties -> ${JSON.stringify(props)}`);
   }
 
   const after = doc.toString();

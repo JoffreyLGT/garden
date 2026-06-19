@@ -38,6 +38,7 @@ never published. Supported properties:
 | `site_title`   | Text   | Site name in the top-left header (`configuration.pageTitle`). |
 | `site_tagline` | Text   | Appended to the browser-tab title (`pageTitleSuffix`).        |
 | `footer_links` | List   | Footer links; each item is `Label \| https://url`.            |
+| `display_properties` | List | Note properties shown on each page (allowlist; `includeAll` stays off so flags like `public` never leak). E.g. `created`, `tags`. |
 
 Example frontmatter:
 
