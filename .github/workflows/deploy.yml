@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: Install Quartz plugins
-        run: npm run install-plugins
+        run: node ./quartz/bootstrap-cli.mjs plugin install
 
       - name: Build Quartz
         run: node ./quartz/bootstrap-cli.mjs build
