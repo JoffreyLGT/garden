@@ -24,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import YAML from "yaml";
 
 // ---------- configuration ----------
 const VAULT = path.resolve(process.env.VAULT_PATH || "D:/Garden");
@@ -56,20 +57,18 @@ function walk(dir, out = []) {
   return out;
 }
 
-// Minimal, tolerant parser for the leading YAML frontmatter block. We only need
-// flat scalar keys (specifically `public`), so this avoids any YAML dependency.
+// Parse the leading YAML frontmatter block (handles scalars, lists, and maps —
+// e.g. the control-panel note's `footer_links` list).
 function frontmatter(text) {
   if (!text.startsWith("---")) return {};
   const firstNL = text.indexOf("\n");
   const end = text.indexOf("\n---", firstNL);
   if (firstNL === -1 || end === -1) return {};
-  const block = text.slice(firstNL + 1, end);
-  const data = {};
-  for (const line of block.split(/\r?\n/)) {
-    const m = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
-    if (m) data[m[1]] = m[2].trim();
+  try {
+    return YAML.parse(text.slice(firstNL + 1, end)) ?? {};
+  } catch {
+    return {};
   }
-  return data;
 }
 
 function truthy(val) {
@@ -80,6 +79,9 @@ function truthy(val) {
 const isPublic = (fm) => truthy(fm.public);
 // A note flagged `home: true` becomes the site homepage (emitted as content/index.md).
 const isHome = (fm) => truthy(fm.home);
+// A note flagged `garden_config: true` is the site "control panel": its properties
+// drive quartz.config.yaml. It is read for settings but never published as a page.
+const isConfig = (fm) => truthy(fm.garden_config);
 
 // Collect attachment references (Obsidian embeds + markdown images) from a note body.
 function refsFromBody(text) {
@@ -127,6 +129,59 @@ function pruneEmptyDirs(dir) {
   } catch {}
 }
 
+// Turn a footer_links property into a { label: url } map. Accepts either an
+// Obsidian list of "Label | URL" strings, or a YAML map of label -> url.
+function parseFooterLinks(val) {
+  const out = {};
+  if (Array.isArray(val)) {
+    for (const entry of val) {
+      const s = String(entry).trim();
+      if (!s) continue;
+      const i = s.indexOf("|");
+      if (i === -1) out[s] = s; // bare URL, label = url
+      else out[s.slice(0, i).trim()] = s.slice(i + 1).trim();
+    }
+  } else if (val && typeof val === "object") {
+    for (const [k, v] of Object.entries(val)) out[k] = String(v);
+  }
+  return out;
+}
+
+// Apply the control-panel note's properties to quartz.config.yaml (preserving the
+// file's comments/structure). Returns the human-readable changes; only writes when
+// `write` is true and something actually changed.
+function applySiteConfig(cfgFm, write) {
+  const cfgPath = path.join(SITE, "quartz.config.yaml");
+  const before = fs.readFileSync(cfgPath, "utf8");
+  const doc = YAML.parseDocument(before);
+  const changes = [];
+
+  if (cfgFm.site_title != null && String(cfgFm.site_title) !== "") {
+    doc.setIn(["configuration", "pageTitle"], String(cfgFm.site_title));
+    changes.push(`site title -> "${cfgFm.site_title}"`);
+  }
+  if ("site_tagline" in cfgFm) {
+    const suffix = cfgFm.site_tagline ? ` — ${cfgFm.site_tagline}` : "";
+    doc.setIn(["configuration", "pageTitleSuffix"], suffix);
+    changes.push(`tagline -> "${cfgFm.site_tagline ?? ""}"`);
+  }
+  if ("footer_links" in cfgFm) {
+    const links = parseFooterLinks(cfgFm.footer_links);
+    const plugins = doc.get("plugins", true);
+    for (const item of plugins?.items ?? []) {
+      if (item.get && item.get("source") === "github:quartz-community/footer") {
+        item.setIn(["options", "links"], doc.createNode(links));
+        changes.push(`footer links -> ${JSON.stringify(links)}`);
+      }
+    }
+  }
+
+  const after = doc.toString();
+  const willWrite = after !== before;
+  if (write && willWrite) fs.writeFileSync(cfgPath, after);
+  return { changes, willWrite };
+}
+
 function git(a) { return execFileSync("git", a, { cwd: SITE, encoding: "utf8" }); }
 
 function gitCommitPush(n) {
@@ -163,11 +218,13 @@ function main() {
     return { abs, text, fm: frontmatter(text) };
   });
   const homeAbs = parsed.find((p) => isHome(p.fm))?.abs ?? null;
+  const cfgNote = parsed.find((p) => isConfig(p.fm)) ?? null;
 
   const emit = new Map(); // contentRelPath -> absolute source path
   let publicCount = 0;
 
   for (const p of parsed) {
+    if (p === cfgNote) continue; // control-panel note: config only, not a page
     const isHomeNote = p.abs === homeAbs;
     if (!isPublic(p.fm) && !isHomeNote) continue; // home note is published implicitly
     publicCount++;
@@ -195,6 +252,11 @@ function main() {
   if (DRY) {
     console.log("Would emit:");
     [...next].sort().forEach((p) => console.log(`  + ${p}`));
+    if (cfgNote) {
+      const { changes } = applySiteConfig(cfgNote.fm, false);
+      console.log(`Site config (from ${toPosix(path.relative(VAULT, cfgNote.abs))}):`);
+      changes.forEach((c) => console.log(`  ~ ${c}`));
+    }
     console.log("\n--dry-run: nothing written.");
     return;
   }
@@ -216,6 +278,12 @@ function main() {
   if (!fs.existsSync(indexAbs)) {
     fs.writeFileSync(indexAbs, "---\ntitle: Garden\n---\n\nWelcome to my digital garden.\n");
     console.log("No `home: true` note found — wrote a default content/index.md.");
+  }
+
+  // Apply site settings from the control-panel note (if any) to quartz.config.yaml.
+  if (cfgNote) {
+    const { changes, willWrite } = applySiteConfig(cfgNote.fm, true);
+    if (willWrite) console.log(`Applied site config (${toPosix(path.relative(VAULT, cfgNote.abs))}): ${changes.join("; ")}`);
   }
 
   console.log("\nContent folder synced.");

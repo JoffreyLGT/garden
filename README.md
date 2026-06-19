@@ -23,6 +23,38 @@ To control the landing page from Obsidian, add `home: true` to the frontmatter o
 any vault note — it gets published as `content/index.md` (the site root). The first
 note with `home: true` wins; if none exists, a default homepage is generated.
 
+A page's title comes from its `title` property; without one, Quartz uses the
+filename (so the homepage would show as "Index"). Add `title:` to the home note to
+name it.
+
+## Site settings from Obsidian (control-panel note)
+
+Create one vault note with the property `garden_config: true` (a checkbox). Its other
+properties are applied to `quartz.config.yaml` on every publish. The note itself is
+never published. Supported properties:
+
+| Property       | Type   | Effect                                                        |
+| -------------- | ------ | ------------------------------------------------------------- |
+| `site_title`   | Text   | Site name in the top-left header (`configuration.pageTitle`). |
+| `site_tagline` | Text   | Appended to the browser-tab title (`pageTitleSuffix`).        |
+| `footer_links` | List   | Footer links; each item is `Label \| https://url`.            |
+
+Example frontmatter:
+
+```yaml
+---
+garden_config: true
+site_title: Joffrey's Garden
+site_tagline: Notes on dev and life
+footer_links:
+  - GitHub | https://github.com/JoffreyLGT
+  - Email | mailto:hello@example.com
+---
+```
+
+(Deeper/rarer settings — theme colours, which plugins are on — still live directly
+in `quartz.config.yaml`.)
+
 ## Publishing (day to day)
 
 From this folder:
