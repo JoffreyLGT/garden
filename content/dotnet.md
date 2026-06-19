@@ -7,7 +7,7 @@ public: true
 ---
 ## Snippets
 ### Read a section from `appsettings.json`
-```C#
+```csharp
 IConfiguration configuration = new ConfigurationBuilder()
 	.AddJsonFile("./config/appsettings.json", optional: false, reloadOnChange: false)
 	.AddJsonFile("./config/appsettings.Development.json", optional: true, reloadOnChange: false)
