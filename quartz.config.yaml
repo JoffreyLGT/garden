@@ -244,9 +244,12 @@ plugins:
     options:
       includeAll: false
       includedProperties:
-        - description
         - tags
-        - aliases
+        - created
+        - category
+        - url
+        - rating
+        - maker
       excludedProperties: []
       hidePropertiesView: false
       delimiters: ---
