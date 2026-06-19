@@ -249,7 +249,9 @@ function main() {
   let publicCount = 0;
 
   for (const p of parsed) {
-    if (p === cfgNote) continue; // control-panel note: config only, not a page
+    // The control-panel note isn't published as its own page — unless it's also
+    // the homepage (a single note can be both), in which case it must still emit.
+    if (p === cfgNote && p.abs !== homeAbs) continue;
     const isHomeNote = p.abs === homeAbs;
     if (!isPublic(p.fm) && !isHomeNote) continue; // home note is published implicitly
     publicCount++;
