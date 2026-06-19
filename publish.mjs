@@ -18,7 +18,8 @@
 //   node publish.mjs --no-git     sync files only, no git at all
 //   node publish.mjs --dry-run    report what WOULD change, write nothing
 //
-// The vault path can be overridden with the VAULT_PATH environment variable.
+// The source vault is read from vault-path.txt (a local, gitignored file in this
+// folder), or from the VAULT_PATH environment variable.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -27,8 +28,18 @@ import { execFileSync } from "node:child_process";
 import YAML from "yaml";
 
 // ---------- configuration ----------
-const VAULT = path.resolve(process.env.VAULT_PATH || "D:/Garden");
 const SITE = path.dirname(fileURLToPath(import.meta.url));
+const VAULT_CONFIG = path.join(SITE, "vault-path.txt"); // local & gitignored: source vault path
+function resolveVault() {
+  const fromEnv = process.env.VAULT_PATH?.trim();
+  if (fromEnv) return path.resolve(fromEnv);
+  try {
+    const fromFile = fs.readFileSync(VAULT_CONFIG, "utf8").trim();
+    if (fromFile) return path.resolve(fromFile);
+  } catch {}
+  return null;
+}
+const VAULT = resolveVault();
 const CONTENT = path.join(SITE, "content");
 const MANIFEST = path.join(SITE, ".publish-manifest.json");
 const SKIP_DIRS = new Set([".obsidian", ".trash", ".git"]);
@@ -65,7 +76,7 @@ function frontmatter(text) {
   const end = text.indexOf("\n---", firstNL);
   if (firstNL === -1 || end === -1) return {};
   try {
-    return YAML.parse(text.slice(firstNL + 1, end)) ?? {};
+    return YAML.parse(text.slice(firstNL + 1, end), { logLevel: "silent" }) ?? {};
   } catch {
     return {};
   }
@@ -204,8 +215,9 @@ function gitCommitPush(n) {
 
 // ---------- main ----------
 function main() {
-  if (!fs.existsSync(VAULT)) {
-    console.error(`Vault not found: ${VAULT} (set VAULT_PATH to override)`);
+  if (!VAULT || !fs.existsSync(VAULT)) {
+    console.error(`Source vault not found (current: ${VAULT ?? "unset"}).`);
+    console.error(`Set it in ${VAULT_CONFIG} (one line: the vault path), or via VAULT_PATH.`);
     process.exit(1);
   }
   const allFiles = walk(VAULT);
