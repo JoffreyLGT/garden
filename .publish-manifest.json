@@ -8,6 +8,7 @@
   "Git.md",
   "Gitea.md",
   "Logseq.md",
+  "Obsidian Tasks plugin.md",
   "Obsidian.md",
   "Podman.md",
   "Powershell - Check the connection between two machines on a specific port.md",
@@ -16,8 +17,10 @@
   "Steph ANGO.md",
   "Visual Studio 2022.md",
   "Visual Studio Code.md",
+  "Wezterm.md",
   "Zerobyte.md",
   "dotnet.md",
+  "index.md",
   "keepachangelog.com.md",
   "rustdesk.md"
 ]
